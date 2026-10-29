@@ -180,3 +180,5 @@ body.play .timerCard{display:none}
   #timer{width:min(26vw,18vh);height:min(26vw,18vh)}
   #playBar,#pickAlarm{flex-basis:100%}
 }
+#ver{position:fixed;right:max(1.2vmin,env(safe-area-inset-right));bottom:max(1vmin,env(safe-area-inset-bottom));font-size:12px;font-weight:700;color:rgba(34,49,79,.45);pointer-events:none}
+#clockWrap,#clock *{touch-action:none}

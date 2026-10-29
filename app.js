@@ -454,11 +454,11 @@ clock.addEventListener('pointerdown', e => {
   const t = new Date(play ? playMs : Date.now());
   const m = t.getMinutes() + t.getSeconds() / 60, aM = m * 6, aH = ((t.getHours() % 12) + m / 60) * 30;
   const dm = angDiff(p.a, aM), dh = angDiff(p.a, aH);
-  let which = null;
-  if (dm <= 32 && dh <= 32) which = p.d < 56 ? 'h' : 'm';
-  else if (dm <= 32) which = 'm';
-  else if (dh <= 32) which = 'h';
-  if (!which) return;
+  let which;
+  if (dm <= 40 && dh <= 40) which = p.d < 56 ? 'h' : 'm';
+  else if (dm <= 40) which = 'm';
+  else if (dh <= 40) which = 'h';
+  else which = p.d < 56 ? 'h' : 'm';
   e.preventDefault();
   clock.setPointerCapture(e.pointerId);
   tween = null;
@@ -483,6 +483,8 @@ const endDrag = e => {
   if (!setFor && n && n.a.time === `${pad(t.getHours())}:${pad(t.getMinutes())}`) { toast(`딱 맞았어요! ${n.a.name} 시각이에요`); chime(0); matchFx(); }
 };
 clock.addEventListener('pointerup', endDrag);
+clock.addEventListener('lostpointercapture', endDrag);
+['touchstart', 'touchmove'].forEach(ev => clock.addEventListener(ev, e => e.preventDefault(), { passive: false }));
 clock.addEventListener('pointercancel', endDrag);
 $('#undoBtn').addEventListener('click', undo);
 $('#nowBtn').addEventListener('click', goNow);
@@ -735,4 +737,8 @@ requestAnimationFrame(frame);
 nextBg();
 keepAwake();
 unlockAudio();
-if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+if ('serviceWorker' in navigator) {
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloaded) { reloaded = true; location.reload(); } });
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update()).catch(() => {}));
+}
