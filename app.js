@@ -252,14 +252,26 @@ function checkAlerts(next, r) {
 /* ---------- 매 순간 ---------- */
 let lastSec = -1;
 function frame() {
-  const now = new Date();
+  const real = new Date();
+  stepPlay();
+  const now = play ? new Date(playMs) : real;
   const s = now.getSeconds() + now.getMilliseconds() / 1000, m = now.getMinutes() + s / 60, h = (now.getHours() % 12) + m / 60;
   const aH = h * 30, aM = m * 6;
   rot(H.h, aH); rot(H.m, aM); rot(H.s, s * 6);
-  H.s.style.display = prefs.seconds ? '' : 'none';
+  H.s.style.display = prefs.seconds && !play ? '' : 'none';
 
-  const next = findNext(now);
-  if (next) {
+  const next = findNext(real);
+  if (play) {
+    H.wedge.setAttribute('d', ''); H.goal.setAttribute('opacity', 0);
+    const ga = setFor ? alarms.find(a => a.id === setFor) : next && next.a;
+    if (ga && !setFor) {
+      const [th, tm] = ga.time.split(':').map(Number);
+      rot(H.gh, ((th % 12) + tm / 60) * 30); rot(H.gm, tm * 6);
+    }
+    H.gh.setAttribute('opacity', ga && !setFor ? .28 : 0); H.gm.setAttribute('opacity', ga && !setFor ? .28 : 0);
+    const key = Math.floor(playMs / 60000);
+    if (key !== lastPlayKey) { lastPlayKey = key; playInfo(now); }
+  } else if (next) {
     const r = next.at - now;
     const color = r <= 300000 ? '#ff6a5a' : r <= 600000 ? '#ffb020' : '#46c46a';
     const th = next.at.getHours(), tm = next.at.getMinutes();
@@ -282,8 +294,8 @@ function frame() {
   const sec = now.getSeconds();
   if (sec !== lastSec) {
     lastSec = sec;
-    updateInfo(now, next);
-    if (next) checkAlerts(next, next.at - now);
+    if (!play) updateInfo(real, next); else $('#nowTxt').textContent = hm(real);
+    if (next) checkAlerts(next, next.at - real);
   }
   requestAnimationFrame(frame);
 }
@@ -311,6 +323,119 @@ function updateInfo(now, next) {
         ? `<b style="color:#e5483f">짧은 빨간 바늘</b>이 흐린 바늘 자리까지 가면 ${msg}`
         : '아직 시간이 많이 남았어요';
   }
+}
+
+/* ---------- 바늘 잡고 돌리기 ---------- */
+let play = false, playMs = 0, drag = null, tween = null, steps = [], lastTouch = 0, setFor = null, lastPlayKey = -1;
+const pad = n => String(n).padStart(2, '0');
+function stepPlay() {
+  if (tween) {
+    const k = Math.min(1, (Date.now() - tween.start) / tween.dur), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    const to = tween.to === 'now' ? Date.now() : tween.to;
+    playMs = tween.from + (to - tween.from) * e;
+    if (k === 1) { const now = tween.to === 'now'; tween = null; if (now) exitPlay(); }
+  } else if (play && !drag && Date.now() - lastTouch > 30000) goNow();
+}
+function enterPlay(ms) {
+  if (!play) { play = true; playMs = ms; document.body.classList.add('play'); $('#playBar').hidden = false; lastPlayKey = -1; }
+  lastTouch = Date.now();
+}
+function exitPlay() {
+  play = false; setFor = null; steps = []; drag = null;
+  document.body.classList.remove('play'); $('#playBar').hidden = true; $('#pickAlarm').hidden = true;
+  lastSec = -1;
+}
+function tweenTo(to) { tween = { from: playMs, to, start: Date.now(), dur: 900 }; lastTouch = Date.now(); }
+function goNow() { steps = []; $('#pickAlarm').hidden = true; tweenTo('now'); }
+function undo() {
+  if (!play) return;
+  if (!steps.length) return goNow();
+  const prev = steps.pop();
+  prev === null ? goNow() : tweenTo(prev);
+}
+function playInfo(t) {
+  const h = t.getHours(), m = t.getMinutes();
+  const a = setFor && alarms.find(x => x.id === setFor);
+  const day = new Date(t).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0);
+  const dayTxt = day > 0 ? (day === 864e5 ? '내일 ' : `${Math.round(day / 864e5)}일 뒤 `) : day < 0 ? (day === -864e5 ? '어제 ' : `${Math.round(-day / 864e5)}일 전 `) : '';
+  $('#aIcon').innerHTML = `<use href="#i-${a ? a.icon : 'hand'}"/>`;
+  $('#aName').textContent = a ? `${a.name} 시각 고르기` : '시계 놀이';
+  $('#aAt').textContent = dayTxt.trim();
+  $('#remain').innerHTML = `<span class="digi"><small>${h < 12 ? '오전' : '오후'}</small>${h % 12 || 12}:${pad(m)}</span>`;
+  $('#tip').innerHTML = `<b>${h % 12 || 12}시${m ? ' ' + m + '분' : ''}</b> · 긴 바늘은 분, 짧은 바늘은 시`;
+  $('#setBtn').innerHTML = `${icon('flag')}${a ? '이 시각으로 저장' : '알람 시각으로'}`;
+}
+function ptOf(e) {
+  const r = clock.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width * 200 - 100, y = (e.clientY - r.top) / r.height * 200 - 100;
+  return { a: (Math.atan2(x, -y) * 180 / Math.PI + 360) % 360, d: Math.hypot(x, y) };
+}
+const angDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
+clock.addEventListener('pointerdown', e => {
+  const p = ptOf(e);
+  if (p.d > 102 || p.d < 8) return;
+  const t = new Date(play ? playMs : Date.now());
+  const m = t.getMinutes() + t.getSeconds() / 60, aM = m * 6, aH = ((t.getHours() % 12) + m / 60) * 30;
+  const dm = angDiff(p.a, aM), dh = angDiff(p.a, aH);
+  let which = null;
+  if (dm <= 32 && dh <= 32) which = p.d < 56 ? 'h' : 'm';
+  else if (dm <= 32) which = 'm';
+  else if (dh <= 32) which = 'h';
+  if (!which) return;
+  e.preventDefault();
+  clock.setPointerCapture(e.pointerId);
+  tween = null;
+  steps.push(play ? playMs : null); if (steps.length > 50) steps.shift();
+  enterPlay(Math.round(Date.now() / 60000) * 60000);
+  $('#pickAlarm').hidden = true;
+  drag = { which, lastA: p.a, id: e.pointerId };
+  H[which].classList.add('grab');
+});
+clock.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const p = ptOf(e), da = ((p.a - drag.lastA + 540) % 360) - 180;
+  drag.lastA = p.a;
+  playMs += da / 360 * (drag.which === 'm' ? 3600000 : 43200000);
+  lastTouch = Date.now();
+});
+const endDrag = e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  H[drag.which].classList.remove('grab');
+  drag = null; playMs = Math.round(playMs / 60000) * 60000; lastTouch = Date.now(); lastPlayKey = -1;
+  const t = new Date(playMs), n = findNext(new Date());
+  if (!setFor && n && n.a.time === `${pad(t.getHours())}:${pad(t.getMinutes())}`) { toast(`딱 맞았어요! ${n.a.name} 시각이에요`); chime(10); }
+};
+clock.addEventListener('pointerup', endDrag);
+clock.addEventListener('pointercancel', endDrag);
+$('#undoBtn').addEventListener('click', undo);
+$('#nowBtn').addEventListener('click', goNow);
+function saveTime(a) {
+  const t = new Date(playMs);
+  a.time = `${pad(t.getHours())}:${pad(t.getMinutes())}`;
+  if (!a.on) a.on = true;
+  saveAlarms();
+  toast(`'${a.name}' 시각을 ${hm(t)}로 정했어요`);
+  goNow();
+}
+$('#setBtn').addEventListener('click', () => {
+  lastTouch = Date.now();
+  const a = setFor && alarms.find(x => x.id === setFor);
+  if (a) return saveTime(a);
+  const pk = $('#pickAlarm');
+  if (!pk.hidden) { pk.hidden = true; return; }
+  pk.innerHTML = `<div class="q">어느 알람 시각으로 할까요?</div>` +
+    alarms.map(x => `<button class="btn" data-pick="${x.id}">${icon(x.icon)}${esc(x.name)}</button>`).join('');
+  pk.hidden = false;
+});
+$('#pickAlarm').addEventListener('click', e => {
+  const b = e.target.closest('[data-pick]'); if (!b) return;
+  saveTime(alarms.find(x => x.id === b.dataset.pick));
+});
+function setByHands(a) {
+  const [hh, mm] = a.time.split(':').map(Number), t = new Date(); t.setHours(hh, mm, 0, 0);
+  $('#sheet').hidden = true;
+  steps = [null]; setFor = a.id;
+  play = false; enterPlay(Date.now()); tweenTo(+t);
 }
 
 /* ---------- 배경 ---------- */
@@ -422,6 +547,7 @@ function renderAlarms() {
       <div class="row"><label class="f">그때 나오는 말<input type="text" data-f="msg" value="${esc(a.msg || '')}"></label></div>
       <div class="row">${DAYS.map((d, i) => `<button class="day ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}" data-act="day" data-v="${i}" aria-pressed="${a.days.includes(i)}">${d}</button>`).join('')}</div>
       <div class="row"><button class="btn" data-act="wk">평일</button><button class="btn" data-act="we">주말</button><button class="btn" data-act="all">매일</button>
+        <button class="btn" data-act="hands">${icon('hand')}바늘로 정하기</button>
         <span style="flex:1"></span><button class="btn danger" data-act="del">${icon('trash')}지우기</button></div>
     </div>`).join('') +
     `<button class="btn primary full" data-act="add">${icon('plus')}알람 더하기</button>`;
@@ -440,6 +566,7 @@ $('#pane-alarms').addEventListener('click', e => {
     alarms.push({ id: uid(), name: '새 알람', icon: 'star', time: '08:00', days: [1, 2, 3, 4, 5], on: true, msg: '출발!' });
   } else {
     const a = alarms.find(x => x.id === b.closest('[data-id]').dataset.id);
+    if (act === 'hands') return setByHands(a);
     if (act === 'icon') a.icon = b.dataset.v;
     if (act === 'on') a.on = !a.on;
     if (act === 'day') { const v = +b.dataset.v; a.days = a.days.includes(v) ? a.days.filter(x => x !== v) : [...a.days, v].sort(); }

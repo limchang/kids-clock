@@ -31,6 +31,9 @@
     <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
     <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
     <symbol id="i-expand" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+    <symbol id="i-hand" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></symbol>
     <symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.3 2.9A6 6 0 0 0 20 4v11a6 6 0 0 1-4.7.9C13 15 11 13 8 13a6 6 0 0 0-4 1.5"/></symbol>
   </defs>
 </svg>
@@ -45,7 +48,13 @@
       <div class="big" id="remain"></div>
       <div class="tip" id="tip"></div>
     </div>
-    <div class="card now"><svg class="ic"><use href="#i-star"/></svg>지금은 <b id="nowTxt"></b></div>
+    <div class="card now" id="nowCard"><svg class="ic"><use href="#i-star"/></svg>지금은 <b id="nowTxt"></b><span class="hand"><svg class="ic"><use href="#i-hand"/></svg>바늘을 돌려 보세요</span></div>
+    <div id="playBar" hidden>
+      <button class="pbtn" id="undoBtn"><svg class="ic"><use href="#i-undo"/></svg>되돌리기</button>
+      <button class="pbtn" id="nowBtn"><svg class="ic"><use href="#i-clock"/></svg>지금 시각</button>
+      <button class="pbtn alt" id="setBtn"><svg class="ic"><use href="#i-flag"/></svg>알람 시각으로</button>
+    </div>
+    <div class="card" id="pickAlarm" hidden></div>
   </section>
 </main>
 
