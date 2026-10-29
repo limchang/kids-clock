@@ -726,7 +726,6 @@ $('#pane-etc').addEventListener('click', e => {
 });
 
 /* ---------- 시작 ---------- */
-buildClock();
 requestAnimationFrame(frame);
 nextBg();
 keepAwake();
