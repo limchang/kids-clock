@@ -2,7 +2,7 @@
 const $ = s => document.querySelector(s);
 const NS = 'http://www.w3.org/2000/svg';
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
-const ICONS = ['bus', 'meal', 'moon', 'star'];
+const ICONS = ['bag', 'bus', 'bowl', 'meal', 'moon', 'star'];
 
 /* ---------- 저장 ---------- */
 const LS = {
@@ -12,11 +12,15 @@ const LS = {
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 let alarms = LS.get('alarms', [
-  { id: 'a1', name: '어린이집', icon: 'bus', time: '08:40', days: [1, 2, 3, 4, 5], on: true, msg: '출발!' },
-  { id: 'a2', name: '밥', icon: 'meal', time: '18:00', days: [0, 1, 2, 3, 4, 5, 6], on: true, msg: '밥 먹을 시간!' },
+  { id: 'a1', name: '어린이집', icon: 'bag', time: '08:40', days: [1, 2, 3, 4, 5], on: true, msg: '출발!' },
+  { id: 'a2', name: '밥', icon: 'bowl', time: '18:00', days: [0, 1, 2, 3, 4, 5, 6], on: true, msg: '밥 먹을 시간!' },
   { id: 'a3', name: '잠', icon: 'moon', time: '21:00', days: [0, 1, 2, 3, 4, 5, 6], on: true, msg: '잘 시간!' },
   { id: 'a4', name: '주말 나들이', icon: 'star', time: '10:00', days: [0, 6], on: false, msg: '출발!' }
 ]);
+if (!LS.get('mig2', false)) {
+  alarms.forEach(a => { if (a.id === 'a1' && a.icon === 'bus') a.icon = 'bag'; if (a.id === 'a2' && a.icon === 'meal') a.icon = 'bowl'; });
+  LS.set('alarms', alarms); LS.set('mig2', true);
+}
 let prefs = Object.assign({ seconds: true, volume: 0.7, rotateMin: 5 }, LS.get('prefs', {}));
 let bgs = LS.get('bgs', [
   { id: 'b-bus', kind: 'builtin', key: 'bus', on: true, scale: 1, x: 50, y: 50 },
@@ -129,9 +133,13 @@ function el(tag, attrs, parent) {
   return e;
 }
 const P = (r, a) => [r * Math.sin(a * Math.PI / 180), -r * Math.cos(a * Math.PI / 180)];
-let H = {};
-function buildClock() {
-  clock.innerHTML = '';
+function buildFace(svg, ring) {
+  svg.innerHTML = '';
+  const H = {}, clock = svg;
+  if (ring) {
+    el('circle', { r: 105, fill: 'none', stroke: '#e3e9f3', 'stroke-width': 8 }, clock);
+    H.ring = el('circle', { r: 105, fill: 'none', stroke: '#46c46a', 'stroke-width': 8, 'stroke-linecap': 'round', 'stroke-dasharray': 659.7, 'stroke-dashoffset': 659.7, transform: 'rotate(-90)' }, clock);
+  }
   el('circle', { r: 98, fill: '#ffffff', stroke: '#2f6fde', 'stroke-width': 4 }, clock);
   el('circle', { r: 93.5, fill: 'none', stroke: '#e8eefb', 'stroke-width': 1.5 }, clock);
   H.wedge = el('path', { d: '', opacity: .38 }, clock);
@@ -161,7 +169,66 @@ function buildClock() {
   el('circle', { cx: 0, cy: -66, r: 3.6, fill: '#f39c12' }, H.s);
   el('circle', { r: 6.5, fill: '#22314f' }, clock);
   el('circle', { r: 2.6, fill: '#f39c12' }, clock);
+  return H;
 }
+const H = buildFace(clock), G = buildFace($('#goalClock'), true);
+G.s.style.display = 'none';
+function updateGoal(ga, r) {
+  const show = ga ? 1 : 0;
+  G.h.setAttribute('opacity', show); G.m.setAttribute('opacity', show);
+  if (ga) { const [th, tm] = ga.time.split(':').map(Number); rot(G.h, ((th % 12) + tm / 60) * 30); rot(G.m, tm * 6); }
+  const f = r == null ? 0 : r <= 0 ? 1 : r >= 3600000 ? 0 : 1 - r / 3600000;
+  G.ring.setAttribute('stroke-dashoffset', (659.7 * (1 - f)).toFixed(1));
+  G.ring.setAttribute('stroke', r != null && r <= 300000 ? '#ff6a5a' : r != null && r <= 600000 ? '#ffb020' : '#46c46a');
+}
+function matchFx() {
+  for (const e of [$('#clockWrap'), $('#mainCard')]) { e.classList.remove('match'); void e.getBoundingClientRect(); e.classList.add('match'); }
+  setTimeout(() => { $('#clockWrap').classList.remove('match'); $('#mainCard').classList.remove('match'); }, 2200);
+}
+
+/* ---------- 남은 시간 타이머 (60분 판) ---------- */
+const T = {};
+(function buildTimer() {
+  const svg = $('#timer');
+  el('circle', { r: 97, fill: '#fff', stroke: '#ffd0cb', 'stroke-width': 4 }, svg);
+  T.sector = el('path', { d: '', fill: '#ff6a5a' }, svg);
+  for (let i = 0; i < 60; i++) {
+    const big = i % 5 === 0, [x1, y1] = P(big ? 84 : 89, i * 6), [x2, y2] = P(93, i * 6);
+    el('line', { x1, y1, x2, y2, stroke: '#22314f', 'stroke-width': big ? 2.6 : 1, 'stroke-linecap': 'round', opacity: big ? .8 : .35 }, svg);
+  }
+  el('circle', { r: 11, fill: '#22314f' }, svg);
+})();
+const MINS = [5, 10, 15, 30];
+let timerEnd = LS.get('timerEnd', 0) || null, tmMode = '';
+function renderTimerBtns() {
+  const mode = timerEnd ? 'stop' : 'btns';
+  if (mode === tmMode) return; tmMode = mode;
+  $('#tmBtns').innerHTML = timerEnd
+    ? `<button class="tbtn stop" id="tmStop" aria-label="타이머 끄기">${icon('x')}</button>`
+    : MINS.map(m => `<button class="tbtn" data-min="${m}" aria-label="${m}분"><svg viewBox="-12 -12 24 24"><circle r="11" fill="#fff" stroke="#ffb3aa" stroke-width="1.5"/><path d="${wedgePath(10, 360 - m * 6, m * 6)}" fill="#ff6a5a"/></svg><span>${m}</span></button>`).join('');
+}
+$('#tmBtns').addEventListener('click', e => {
+  if (e.target.closest('#tmStop')) { timerEnd = null; LS.set('timerEnd', 0); return; }
+  const b = e.target.closest('[data-min]'); if (!b) return;
+  timerEnd = Date.now() + b.dataset.min * 60000; LS.set('timerEnd', timerEnd);
+});
+function updateTimer(real, next, tick) {
+  let r = null;
+  if (timerEnd) {
+    r = timerEnd - real;
+    if (r <= 0) { timerEnd = null; LS.set('timerEnd', 0); r = null; matchFx(); setTimeout(() => showGo({ icon: 'bell', msg: '끝!' }), 1400); }
+  } else if (next) r = next.at - real;
+  const sweep = r > 0 ? Math.min(r, 3600000) / 3600000 * 360 : 0;
+  T.sector.setAttribute('d', wedgePath(88, 360 - sweep, sweep));
+  T.sector.setAttribute('fill', timerEnd ? '#ff6a5a' : '#2f6fde');
+  if (tick) {
+    renderTimerBtns();
+    let txt = '';
+    if (r > 0) { const mins = Math.ceil(r / 60000); txt = mins < 60 ? `${mins}분` : `${Math.floor(mins / 60)}시간${mins % 60 ? ' ' + mins % 60 + '분' : ''}`; }
+    $('#tmTxt').textContent = txt;
+  }
+}
+
 const rot = (g, a) => g.setAttribute('transform', `rotate(${a.toFixed(3)})`);
 function wedgePath(r, start, sweep) {
   if (sweep <= 0) return '';
@@ -239,7 +306,7 @@ function alertStage(stage) {
 function checkAlerts(next, r) {
   const base = `${next.a.id}@${+next.at}`, has = s => fired[base + ':' + s];
   const mark = (...ss) => { ss.forEach(s => fired[base + ':' + s] = +next.at); LS.set('fired', fired); };
-  if (r <= 0 && r > -60000 && !has(0)) { mark(0, 5, 10); showGo(next.a); }
+  if (r <= 0 && r > -60000 && !has(0)) { mark(0, 5, 10); matchFx(); chime(10); setTimeout(() => showGo(next.a), 1400); }
   else if (r > 0 && r <= 300000 && !has(5)) { mark(5, 10); alertStage(5); }
   else if (r > 300000 && r <= 600000 && !has(10)) { mark(10); alertStage(10); }
 }
@@ -261,6 +328,10 @@ function frame() {
   H.s.style.display = prefs.seconds && !play ? '' : 'none';
 
   const next = findNext(real);
+  const gA = play && setFor ? alarms.find(a => a.id === setFor) : next && next.a;
+  updateGoal(gA, next && gA === next.a ? next.at - real : null);
+  const tick = real.getSeconds() !== lastSec;
+  updateTimer(real, next, tick);
   if (play) {
     H.wedge.setAttribute('d', ''); H.goal.setAttribute('opacity', 0);
     const ga = setFor ? alarms.find(a => a.id === setFor) : next && next.a;
@@ -358,7 +429,8 @@ function playInfo(t) {
   const a = setFor && alarms.find(x => x.id === setFor);
   const day = new Date(t).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0);
   const dayTxt = day > 0 ? (day === 864e5 ? '내일 ' : `${Math.round(day / 864e5)}일 뒤 `) : day < 0 ? (day === -864e5 ? '어제 ' : `${Math.round(-day / 864e5)}일 전 `) : '';
-  $('#aIcon').innerHTML = `<use href="#i-${a ? a.icon : 'hand'}"/>`;
+  const na = a || (findNext(new Date()) || {}).a;
+  $('#aIcon').innerHTML = `<use href="#i-${na ? na.icon : 'hand'}"/>`;
   $('#aName').textContent = a ? `${a.name} 시각 고르기` : '시계 놀이';
   $('#aAt').textContent = dayTxt.trim();
   $('#remain').innerHTML = `<span class="digi"><small>${h < 12 ? '오전' : '오후'}</small>${h % 12 || 12}:${pad(m)}</span>`;
@@ -403,7 +475,7 @@ const endDrag = e => {
   H[drag.which].classList.remove('grab');
   drag = null; playMs = Math.round(playMs / 60000) * 60000; lastTouch = Date.now(); lastPlayKey = -1;
   const t = new Date(playMs), n = findNext(new Date());
-  if (!setFor && n && n.a.time === `${pad(t.getHours())}:${pad(t.getMinutes())}`) { toast(`딱 맞았어요! ${n.a.name} 시각이에요`); chime(10); }
+  if (!setFor && n && n.a.time === `${pad(t.getHours())}:${pad(t.getMinutes())}`) { toast(`딱 맞았어요! ${n.a.name} 시각이에요`); chime(0); matchFx(); }
 };
 clock.addEventListener('pointerup', endDrag);
 clock.addEventListener('pointercancel', endDrag);
