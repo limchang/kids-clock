@@ -12,7 +12,7 @@ const LS = {
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 let alarms = LS.get('alarms', [
-  { id: 'a1', name: '어린이집', icon: 'bag', time: '08:40', days: [1, 2, 3, 4, 5], on: true, msg: '출발!' },
+  { id: 'a1', name: '어린이집 출발', icon: 'bag', time: '08:55', days: [1, 2, 3, 4, 5], on: true, msg: '출발!' },
   { id: 'a2', name: '밥', icon: 'bowl', time: '18:00', days: [0, 1, 2, 3, 4, 5, 6], on: true, msg: '밥 먹을 시간!' },
   { id: 'a3', name: '잠', icon: 'moon', time: '21:00', days: [0, 1, 2, 3, 4, 5, 6], on: true, msg: '잘 시간!' },
   { id: 'a4', name: '주말 나들이', icon: 'star', time: '10:00', days: [0, 6], on: false, msg: '출발!' }
@@ -20,6 +20,11 @@ let alarms = LS.get('alarms', [
 if (!LS.get('mig2', false)) {
   alarms.forEach(a => { if (a.id === 'a1' && a.icon === 'bus') a.icon = 'bag'; if (a.id === 'a2' && a.icon === 'meal') a.icon = 'bowl'; });
   LS.set('alarms', alarms); LS.set('mig2', true);
+}
+if (!LS.get('mig3', false)) {
+  const a1 = alarms.find(a => a.id === 'a1');
+  if (a1 && a1.time === '08:40' && a1.name === '어린이집') Object.assign(a1, { name: '어린이집 출발', time: '08:55' });
+  LS.set('alarms', alarms); LS.set('mig3', true);
 }
 let prefs = Object.assign({ seconds: true, volume: 0.7, rotateMin: 5 }, LS.get('prefs', {}));
 let bgs = LS.get('bgs', [
