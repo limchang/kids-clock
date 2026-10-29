@@ -182,3 +182,9 @@ body.play .timerCard{display:none}
 }
 #ver{position:fixed;right:max(1.2vmin,env(safe-area-inset-right));bottom:max(1vmin,env(safe-area-inset-bottom));font-size:12px;font-weight:700;color:rgba(34,49,79,.45);pointer-events:none}
 #clockWrap,#clock *{touch-action:none}
+@media (orientation:portrait){
+  #clockWrap{width:min(90vw,46vh)}
+  body.play .goalCard{display:grid;grid-template-columns:auto 1fr;align-items:center;column-gap:3vmin}
+  body.play .goalCard .who{grid-column:1/-1}
+  body.play #goalClock{grid-row:span 2;width:min(28vw,17vh);height:min(28vw,17vh)}
+}

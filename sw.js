@@ -1,4 +1,4 @@
-const CACHE = 'kids-clock-v0.5';
+const CACHE = 'kids-clock-v0.6';
 const FILES = ['./', 'index.html', 'style.css?v=0.5', 'app.js?v=0.5', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-512.png'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).catch(() => {})); });
 self.addEventListener('activate', e => {
